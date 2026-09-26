@@ -1,0 +1,45 @@
+name: Build icon
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select latest Xcode 26
+        run: |
+          XC=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)
+          echo "Using $XC"
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
+
+      - name: Unzip .icon (if uploaded as zip)
+        run: |
+          if ls *.icon.zip >/dev/null 2>&1; then
+            ditto -x -k "$(ls *.icon.zip | head -1)" .
+          fi
+          ls -la
+
+      - name: Compile Assets.car + .icns
+        run: |
+          ICON=$(ls -d *.icon | head -1)
+          NAME=$(basename "$ICON" .icon)
+          mkdir -p out
+          xcrun actool "$ICON" \
+            --compile out \
+            --app-icon "$NAME" \
+            --platform macosx \
+            --target-device mac \
+            --minimum-deployment-target 11.0 \
+            --output-partial-info-plist out/partial.plist \
+            --output-format human-readable-text --notices --warnings --errors
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cider-icon
+          path: out/
